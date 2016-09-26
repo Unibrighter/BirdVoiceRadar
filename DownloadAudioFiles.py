@@ -5,9 +5,9 @@ import os
 
 
 # the names of the birds we want to download
-name_list=['Brush%20Cuckoo','Australian%20Golden%20Whistler','Eastern%20Whipbird','Grey%20Shrikethrush','Pied%20Currawong',
+name_list=[
+    'Brush%20Cuckoo','Australian%20Golden%20Whistler','Eastern%20Whipbird','Grey%20Shrikethrush','Pied%20Currawong',
            'Southern%20Boobook','Spangled%20Drongo','Willie%20Wagtail']
-
 
 
 for name in name_list:
