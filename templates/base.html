@@ -1,0 +1,20 @@
+<html>
+  <head>
+    {% if title %}
+    <title>{{title}} - BirdRecognition</title>
+    {% else %}
+    <title>BirdRecognition</title>
+    {% endif %}
+  </head>
+  
+  
+  <body>
+
+<!--There should be a -->
+
+  
+    <div>BirdRecognition: <a href="/user">Home</a></div>
+    <hr>
+    {% block content %}{% endblock %}
+  </body>
+</html>

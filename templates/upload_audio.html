@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>
+Use this form to upload the file you want to test.
+</h2>
+<br/>
+        
+ <!--
+The followings are the content that would feed into the couchdb
+===============================================================
+_id
+
+file_path
+longitude
+latitude
+evaluation
+submitted_by
+date
+time
+estimation_rank
+confidence
+expert_request_status
+expert_mark
+user_comment
+expert_comment 
+ 
+ -->       
+        
+        
+<form action="/upload_audio" method=post enctype=multipart/form-data>
+    Choose A Local File: <input type="file" name="audio_file"> <br/>
+    Longtitude: <input type="text" name="longitude"> <br/>
+    Latitude: <input type="text" name="latitude"> <br/>
+    Evaluation: <input type="text" name=evaluation"> <br/>
+    
+    <!--
+    After the login system is set up, this line should be changed.
+    The back ground logic for web should be able to get the user name by itself.
+    -->
+    Submitted_by: <input type="text" name="submitted_by"> <br/> 
+    
+    Date: <input type="text" name="date"> <br/> 
+    Time: <input type="text" name="Time"> <br/> 
+    User Comments: <input type="text" name="user_comment"> <br/> 
+    
+    <!--
+    Consider to add the function to deal with photo uploading latter on
+    -->
+    <input type="submit" value="Submit">
+</form>
+
+{% endblock %}
