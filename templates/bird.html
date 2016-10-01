@@ -7,12 +7,17 @@
       .label {text-align: right}
       .error {color: red}
     </style>
+    
+    
+    <!--The following section is used for google map demonstration-->
       <script src="http://maps.googleapis.com/maps/api/js?key=AIzaSyC8TpXckdB825zX6MO12cIDXs8TgHq70cs&callback=initMap"></script>
-      <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-      <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
-      <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
-
-  <style type="text/css">
+      
+      
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    
+    <style type="text/css">
 
       .btn-file {
         position: relative;
@@ -33,9 +38,8 @@
         cursor: inherit;
         display: block;
     }
-
-
   </style>
+  
   </head>
 
   <body>
@@ -45,15 +49,12 @@
      
   <div class="btn-group" role="group" aria-label="..."  style="	margin-top: 4cm;">
       <form action="/update" method=post>
-
-  <button type="button" class="btn btn-default"  onclick="this.form.submit()">Update prediction model   </button>
-  
-    </form>
-
+        <button type="button" class="btn btn-default"  onclick="this.form.submit()">Update prediction model</button>
+      </form>
   </div>
 
 
-   <form action="" method=post enctype=multipart/form-data  style="margin-top: 2cm; padding: 0;">
+   <form action="/upload_audio" method=post enctype=multipart/form-data  style="margin-top: 2cm; padding: 0;">
    
    <div class="btn-group" role="group" aria-label="...">
 

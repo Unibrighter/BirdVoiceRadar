@@ -9,7 +9,7 @@ import hashlib
 import random
 
 # the place to store the uploaded audio files, must be absolute path
-UPLOAD_FOLDER = 'F:\\python_tmp'
+UPLOAD_FOLDER = '/Users/bitmad/msc_project/tmp'
 # the file formats allowed
 ALLOWED_EXTENSIONS = set(['wav'])
 
@@ -27,12 +27,13 @@ Config for the flask framework
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+
+
+
 '''
 The method used to tell if the file uploaded is in the allowed format
 takes file name as input
 '''
-
-
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
@@ -42,8 +43,6 @@ def allowed_file(filename):
 The page where allows users to upload new audio file, update machine learning model,
 visualise the location on the map
 '''
-
-
 @app.route("/", methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -93,12 +92,8 @@ def index():
 '''
 This is the url used to update the stored model using the most up-to-date data
 '''
-
-
 @app.route('/update', methods=['GET', 'POST'])
 def update():
-    print 'this is the output of button click'
-
     birdsong = BirdSong()
 
     dic = birdsong.get_feature_dic_mongodb("mongodb://localhost")
@@ -206,52 +201,63 @@ test_dummy using a generate to generate a json response to the client
 @app.route('/upload_audio', methods=['GET', 'POST'])
 def upload_audio():
     if request.method == 'POST':
-        file = request.files['file']
-        if __name__ == '__main__':
-            if file and allowed_file(file.filename):
-                filename = file.filename
+        file = request.files['upload_audio']
+        if file and allowed_file(file.filename):
+            filename = file.filename
 
-                md5_key = hashlib.md5(file.read()).hexdigest()
-                print "file md5 (as id) ", md5_key
+            md5_key = hashlib.md5(file.read()).hexdigest()
+            print "file md5 (as id) ", md5_key
 
-                ### *************
-                # Now we could search it in CouchDB using this unique md5 id to ensure that the file is unique
-                # and if not, then we should return a failure message for the client
-                ### *************### *************
-                ### *************
-                ### *************
-                ### *************
+            ### *************
+            # Now we could search it in CouchDB using this unique md5 id to ensure that the file is unique
+            # and if not, then we should return a failure message for the client
+            ### *************### *************
+            ### *************
+            ### *************
+            ### *************
 
-                unique_md5_filename=md5_key+"."+filename.rsplit('.', 1)[1]
+            unique_md5_filename=md5_key+"."+filename.rsplit('.', 1)[1]
 
-                # save the record temporary that may goes well the second json latter.
-                file_path_on_server=os.path.join(app.config['UPLOAD_FOLDER'], unique_md5_filename)
+            # save the record temporary that may goes well the second json latter.
+            file_path_on_server=os.path.join(app.config['UPLOAD_FOLDER'], unique_md5_filename)
 
-                # storing to the server's disk complete, now deal with the audio id and Database.
-                file.save(file_path_on_server)
+            # storing to the server's disk complete, now deal with the audio id and Database.
+            file.save(file_path_on_server)
 
-                print "file saved as ", unique_md5_filename
+            print "file saved as ", unique_md5_filename
 
-                # generate a record in the database
-                # ..
-                # get a id( this should be changed into CouchDB record id latter on)
+            # generate a record in the database
+            # using couchdb latter on
 
-                random_result=get_estimation_rank()
-                return jsonify({"status":"uploaded","audio_id":md5_key,"estimation_rank":random_result[0],"confident":random_result[1]})
-
+            random_result=get_estimation_rank()
+            return jsonify({"status":"uploaded","audio_id":md5_key,"estimation_rank":random_result[0],"confident":random_result[1]})
+    return render_template('upload_audio.html')
 
 # def check_record_for_existence(md5_id):
 
 
 # this method should be latter changed into something uses more than random function but the generated model
+'''
+Need to be changed into the real model estimator latter on
+'''
 def get_estimation_rank():
     result_dic={}
     confident=False
     for i in range(8):
-        result_dic[i]=random.uniform(0.49, 0.95)
+        result_dic[i]=random.uniform(0.49, 0.82)
         if result_dic[i]>=0.75:
             confident= True
     return result_dic,confident
+
+
+
+
+
+
+
+
+
+
 
 
 
