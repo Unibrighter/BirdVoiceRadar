@@ -1,5 +1,12 @@
 from urllib2 import Request, build_opener, HTTPError, URLError, urlopen
 import simplejson
+import couchdb
+import hashlib
+import sys
+
+sys.path.insert(0,'..')
+import config
+
 
 '''
 The xeno-canto API for downloading audio files
@@ -13,6 +20,28 @@ NUM_SP = "numSpecies"
 PG = "page"
 NUM_PG = "numPages"
 RECS = "recordings"
+
+COUCHDB_SERVER="http://bitmad:mylife4aiur@localhost:5984/"
+DATABASE_NAME="db_bird"
+
+SYSTEM_ADMIN="rocklee.au@foxmail.com"
+
+'''
+This method gets the couchdb connection for storing the data latter on
+'''
+def get_db():
+    couch_server = couchdb.Server(COUCHDB_SERVER)
+    if DATABASE_NAME not in couch_server:
+        couch_server.create(DATABASE_NAME)
+    db_bird = couch_server[DATABASE_NAME]
+    return db_bird
+
+def get_bird_code(bird_name):
+    for i in range(len(config.BIRD_NAME_LIST)):
+        if bird_name== config.BIRD_NAME_LIST[i]:
+            return i
+    # not found
+    return -1
 
 
 # Class that contains all params and methods for querying the db
@@ -88,13 +117,17 @@ class XenoCantoObject:
         self.recs = json[RECS]
 
     # Downloads all audio files in the 'recs' class variable
+    # while setting up the connection to couchdb and store the necessary data for latter usages
     def download_audio(self, audio_dir):
         for idx, rec in enumerate(self.recs):
 
             # the rec obj should contain the meta data we are interested in ,
-            # add some code here to interact with couchdb, and store the file name with hash
+            # build an instance for rec that interacts with couchdb, and store the file to local disk
+
 
             rec_url = rec['file']
+
+            print rec
 
             conn = urlopen(rec_url)
             file_name = audio_dir + rec['en'] + '_' + rec['id'] + '.mp3'
@@ -112,3 +145,40 @@ class XenoCantoObject:
 
             f.close()
             print "Wrote %d/%s" % (idx + 1, self.num_recs)
+
+            # get the md5 of the file we just downloaded and stored
+            with open(file_name) as file_to_check:
+                # read contents of the file
+                data = file_to_check.read()
+                # pipe contents of the file through
+                md5_returned = hashlib.md5(data).hexdigest()
+
+            file_to_check.close
+            # get db connection
+            bird_db = get_db()
+
+            doc = {
+                "type": "record",
+            # this is the file label that distinguish the user account information from audio records
+                "training_data": "true",
+            # this boolean tells if a record belongs to training data or user uploaded category
+                "client": "browser",  # here the client could be one of ['browser','android','ios']
+                "file_path": file_name,
+                "md5":md5_returned,
+                "location":rec['loc'],
+                "longitude":rec['lng'],
+                "latitude":rec['lat'],
+                "evaluation":"",
+                "submitted_by":SYSTEM_ADMIN,
+                "date":rec['date'],
+                "time":rec['time'],
+                "estimation_rank":{},
+                "confidence": "true",
+                "top_estimation_code":get_bird_code(rec['en']),
+                "top_estimation_bird":rec['en'], # this could be latter expanded to a more mature json with more information
+                "user_comment":"This audio file is downloaded from Xeno-Canto.com!",
+                "expert_request_status":"not", # the request status could one of ['not','pending','classified','completed']
+                "expert_comment":"This audio file is downloaded from Xeno-Canto.com!"
+            }
+
+            bird_db.save(doc)

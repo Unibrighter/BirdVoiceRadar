@@ -1,16 +1,14 @@
 from xeno_canto.__init__ import *
 import os
+import sys
+sys.path.insert(0,'..')
+import config
+
+
 
 #Run this code to download audio files using xeno-canto API
 
-
-# the names of the birds we want to download
-name_list=[
-    'Brush%20Cuckoo','Australian%20Golden%20Whistler','Eastern%20Whipbird','Grey%20Shrikethrush','Pied%20Currawong',
-           'Southern%20Boobook','Spangled%20Drongo','Willie%20Wagtail']
-
-
-for name in name_list:
+for name in config.BIRD_DOWNLOAD_LIST:
     # Audio recording quality tag
     q = "A"
     # Instantiate XenoCantoObject
@@ -40,8 +38,6 @@ for name in name_list:
 
 
     # Download all audio files like this
-    rec_dir = os.path.dirname(os.path.realpath(__file__)) + "/audio/"
-    xc_obj.download_audio(rec_dir)
-
-
+    # rec_dir = os.path.dirname(os.path.realpath(__file__)) + "/audio_tmp/"
+    xc_obj.download_audio(config.TRAINING_FILE_FOLDER)
 
