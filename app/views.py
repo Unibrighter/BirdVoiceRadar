@@ -10,32 +10,16 @@ from app import app, login_manager
 from flask_login import login_user, logout_user, current_user, login_required
 from models import User
 import couchdb
-
+from time import strftime
 from forms import RegisterForm, LoginForm
+import copy
+from flask import request
 
 
-# '''
-# This method set up connection for CouchDB database
-# '''
-# def connect_db(db_name):
-#     target_db = None
-#     couch_server = couchdb.Server(app.config['COUCHDB_SERVER'])
-#     db_list = [app.config('DB_USER'), app.config('DB_RECORD'), app.config('DB_MODEL')]
-#     if db_name in db_list:
-#         target_db = couch_server.get_or_create_db(db_name)
-#     return target_db
-#
-#
-# def get_db(db_name):
-#     if db_name == app.config('DB_USER') and not hasattr(g, app.config('DB_USER')):
-#         g.db_user = connect_db(app.app.config('DB_USER'))
-#         return g.db_user
-#     if db_name == app.config('DB_RECORD') and not hasattr(g, app.config('DB_RECORD')):
-#         g.db_record = connect_db(app.app.config('DB_RECORD'))
-#         return g.db_record
-#     if db_name == app.config('DB_MODEL') and not hasattr(g, app.config('DB_MODEL')):
-#         g.db_model = connect_db(app.app.config('DB_MODEL'))
-#         return g.db_model
+'''
+This method sets up a connection to the target CouchDB Database
+'''
+
 
 def get_db():
     couch_server = couchdb.Server(app.config['COUCHDB_SERVER'])
@@ -46,24 +30,45 @@ def get_db():
         g.db_bird = couch_server[app.config['DB_BIRD']]
     return g.db_bird
 
+
 '''
-This function will return a dictionary of users with doc content as value and email as key
+This method return the model that has been trained for further prediction
 '''
-def get_user_dict():
+
+
+def get_model():
+    model = getattr(g, 'model', None)
+    if model is None:
+        # load stored model and means and inverse standard deviations
+        with open('objs.pickle') as f:
+            gmm, means, invstds = pickle.load(f)
+            model = g.model = (gmm, means, invstds)
+    return g.model
+
+
+'''
+This function will return a dictionary of the results defined by the design view
+e.g: get_view_as_dict("account/account_by_email")
+'''
+
+
+def get_view_as_dict(view_name):
     db_bird = get_db()
-    user_dict = {}
-    for row in db_bird.view("account/account_by_email"):
-        user_dict[row.key] = row.value
-    if not user_dict:
+    result_dict = {}
+    for row in db_bird.view(view_name):
+        result_dict[row.key] = row.value
+    if not result_dict:
         return None
     else:
-        return user_dict
+        return result_dict
+
 
 @login_manager.user_loader
 def load_user(id):
     # we have specified that id in User Class is actually the unique email we set
-    target_user = get_user_dict()[id]
-    return User(email=target_user['email'], username=target_user['username'], password=target_user['password'],expert=target_user['expert'], active=True)
+    target_user = get_view_as_dict("account/account_by_email")[id]
+    return User(email=target_user['email'], username=target_user['username'], password=target_user['password'],
+                expert=target_user['expert'], active=True)
 
 
 @app.before_request
@@ -86,6 +91,7 @@ def allowed_file(filename):
 The page where allows users to upload new audio file, update machine learning model,
 visualise the location on the map
 '''
+
 
 @app.route("/", methods=['GET', 'POST'])
 @app.route("/index", methods=['GET', 'POST'])
@@ -205,7 +211,9 @@ def upload():
             # calculate features for the uploaded file and predict
             mfcc_feat1 = birdsong.file_to_features(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             mfcc_feat = (mfcc_feat1 - means) * invstds
-            bird_name, confidence = birdsong.predict_one_bird(mfcc_feat, gmm)
+            rank_list, confidence = birdsong.predict_one_bird(mfcc_feat, gmm)
+
+            bird_name=app.config['BIRD_NAME_LIST'][rank_list[0][0]]
 
             # if confident enough, add feature to the database. The threshold is set manually as 0.7
             if confidence > 0.7:
@@ -248,38 +256,117 @@ test_dummy using a generate to generate a json response to the client
 @app.route('/upload_audio', methods=['GET', 'POST'])
 def upload_audio():
     if request.method == 'POST':
-        print request
-        file = request.files['bird_audio']
-        print file
+        file = request.files['file']
         if file and allowed_file(file.filename):
+            # print request.headers
+            # print request.form
+
             filename = file.filename
             md5_key = hashlib.md5(file.read()).hexdigest()
+            file.seek(0)
             print "file md5 (as id) ", md5_key
 
-            ### *************
             # Now we could search it in CouchDB using this unique md5 id to ensure that the file is unique
             # and if not, then we should return a failure message for the client
-            ### *************### *************
-            ### *************
-            ### *************
-            ### *************
+            record_dict = get_view_as_dict("account/account_by_email")
 
-            unique_md5_filename = md5_key + "." + filename.rsplit('.', 1)[1]
+            # this json is only used for android and iOS
+            response_json={}
 
-            # save the record temporary that may goes well the second json latter.
-            file_path_on_server = os.path.join(app.config['UPLOAD_FOLDER'], unique_md5_filename)
+            if md5_key in record_dict.keys():
+                # the file already existed, we just return the data we stored in database
+                response_json['status'] = "existed"
+                # ... need to fill up other response attributes as well
 
-            # storing to the server's disk complete, now deal with the audio id and Database.
-            file.save(file_path_on_server)
+                doc_rec=record_dict[md5_key]
 
-            print "file saved as ", unique_md5_filename
 
-            # generate a record in the database
-            # using couchdb latter on
+            else:
 
-            random_result = get_estimation_rank()
-            return jsonify({"status": "uploaded", "audio_id": md5_key, "estimation_rank": random_result[0],
-                            "confident": random_result[1]})
+                bird_db=get_db()
+
+                # no matching md5 record in the database,
+                # we need to store the new uploaded file on the disk
+                print request.form
+
+                tmp_file_name = request.form['submitted_by'].replace("@", "__at__")
+                tmp_file_name = tmp_file_name.replace("%40", "__at__")
+                print tmp_file_name
+                tmp_file_name = tmp_file_name + strftime("%Y%m%d%H%M%S") + "." + filename.rsplit('.', 1)[1]
+
+
+                print tmp_file_name
+
+                file_path_on_server = os.path.join(app.config['UPLOAD_FOLDER'], tmp_file_name)
+
+                print file_path_on_server
+                # storing to the server's disk complete, now deal with the audio id and Database.
+                file.save(file_path_on_server)
+                print "file saved as ", tmp_file_name
+
+                # print 'Android' in request.headers.get('User-Agent','Browser')
+
+                doc_rec = {
+                    "type": "record",
+                    # this is the file label that distinguish the user account information from audio records
+                    "training_data": "false",
+                    # this boolean tells if a record belongs to training data or user uploaded category
+                    "client": request.form['client'],  # here the client could be one of ['browser','android','ios']
+                    "file_path": file_path_on_server,
+                    "md5": md5_key,
+                    "location": request.form['location'],
+                    "longitude": request.form['longitude'],
+                    "latitude": request.form['latitude'],
+                    "evaluation": request.form['evaluation'],
+                    "submitted_by": request.form['submitted_by'],
+                    "date": request.form['date'],
+                    "time": request.form['time'],
+                    # "estimation_rank":[],
+                    # "confidence": "0.82",
+                    # "top_estimation_code":get_bird_code(rec['en']),
+                    # "top_estimation_bird":rec['en'], # this could be latter expanded to a more mature json with more information
+                    "user_comment": request.form['user_comment'],
+                    "expert_request_status": "not",
+                    # the request status could one of ['not','pending','classified','completed']
+                    "expert_comment": ""
+                }
+
+                print doc_rec
+
+                # get the model dummy
+                birdsong=BirdSong()
+                model=get_model()
+                gmm=model[0]
+                means=model[1]
+                invstds=model[2]
+
+
+                # calculate features for the uploaded file and predict
+                mfcc_feat1 = birdsong.file_to_features(file_path_on_server)
+                mfcc_feat = (mfcc_feat1 - means) * invstds
+                result_list, confidence = birdsong.predict_one_bird(mfcc_feat, gmm)
+
+                # complete the database doc and store it
+                doc_rec["estimation_rank"]=result_list
+                doc_rec["confidence"]=confidence
+                doc_rec["top_estimation_code"] = result_list[0][0]
+                doc_rec["top_estimation_bird"]= app.config["BIRD_NAME_LIST"][doc_rec["top_estimation_code"]]
+
+                # add a new record
+                bird_db.save(doc_rec)
+                print doc_rec
+
+                # and add some other information into the database as well
+                response_json['status'] = "uploaded"
+                response_json['estimation_rank']=result_list
+                response_json['confidence']= confidence
+                response_json['bird_code_dictionary']=get_bird_code_dictionary()
+
+            # random_result = get_estimation_rank()
+            # return jsonify({"status": "uploaded", "audio_id": md5_key, "estimation_rank": random_result[0],
+            #                 "confident": random_result[1]})
+            return jsonify(response_json)
+
     return render_template('upload_audio.html')
 
 
@@ -292,63 +379,53 @@ This route takes care of the registration of a user,
 def register():
     form = RegisterForm()
 
-    if form.validate_on_submit():
-        # now we are going to handle the uniqueness of email address of user account
-        db_bird = get_db()
+    if request.method=='POST':
+        if form.validate_on_submit() :
+            register_result=save_register_information(form.username.data,form.email.data,form.password.data,form.expert.data)
 
-        tmp_new_user = {
-            "type": "account",  # the user information, separated from other docs
-            "username": form.username.data,
-            "email": form.email.data,
-            "password": form.password.data,
-            "expert": form.expert.data
-        }
+        else:# app client deals separately
+            if request.form['client']=='android' or request.form['client']=='iOS':
+                register_result=save_register_information(request.form['username'],request.form['email'],request.form['password'],request.form['expert'])
 
-        print tmp_new_user
-
-        # put the new added account information into the DB
-        db_bird.save(tmp_new_user)
-
-        print "after save, tmp obj :", tmp_new_user
-
-        # check if the email is used twice or even more in the database
-        email_count = 0
-        for row in db_bird.view("account/account_by_email"):
-            if row.key == form.email.data:
-                email_count += 1
-
-        # delete the record if it appears twice or more, and return an error message
-        if email_count >= 2:
-            db_bird.delete(tmp_new_user)
-            flash("The email has been used. Please try again.")
-
-        flash("A new account has been successfully created!")
+        flash(register_result[1])
         # return redirect(url_for('login'))
-        return "Successfully created a new user!"
+        return jsonify({"status":register_result[0],"message":register_result[1]})
+
     return render_template('register.html', title='Register', form=form)
 
 
 '''
 This route takes care of the login of a user,
 '''
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
-    if request.method =='POST' and form.validate_on_submit():
-        email=form.email.data
-        password=form.password.data
-        user_dict=get_user_dict()
-        if email in user_dict.keys() and password==user_dict[email]['password']: # correct credentials are provided
-            remember_me = request.form.get("remember_me", "False") == "True"
-            if login_user(load_user(email), remember=remember_me):
-                flash("Logged in!")
-                return redirect(url_for("index"))
+    if request.method == 'POST':
+        # print request.form
+        # print request.headers
+        if request.form['client'] =='android' or request.form['client'] =='iOS':
+            email=request.form['email']
+            password=request.form['password']
+            status=check_account_credentials(email,password)
+            return jsonify({"status":status})
+
+        if form.validate_on_submit():# the Browser part
+            email = form.email.data
+            password = form.password.data
+            if check_account_credentials(email,password):  # correct credentials are provided
+                remember_me = request.form.get("remember_me", "False") == "True"
+                if login_user(load_user(email), remember=remember_me):
+                    flash("Logged in!")
+                    return redirect(url_for("index"))
+                else:
+                    flash("Sorry, but you could not log in.")
             else:
-                flash("Sorry, but you could not log in.")
-        else:
-            flash("Invalid username or password.")
+                flash("Invalid username or password.")
 
     return render_template('login.html', title='Login', form=form)
+
 
 @app.route('/logout')
 def logout():
@@ -356,11 +433,11 @@ def logout():
     return redirect(url_for('index'))
 
 
-
 # this method should be latter changed into something uses more than random function but the generated model
 '''
 Need to be changed into the real model estimator latter on
 '''
+
 def get_estimation_rank():
     result_dic = {}
     confident = False
@@ -369,3 +446,56 @@ def get_estimation_rank():
         if result_dic[i] >= 0.75:
             confident = True
     return result_dic, confident
+
+
+def get_bird_code(bird_name):
+    for i in range(app.config['BIRD_NAME_LIST']):
+        if bird_name== app.config['BIRD_NAME_LIST'][i]:
+            return i
+    # not found
+    return -1
+
+def check_account_credentials(email,password):
+    user_dict = get_view_as_dict("account/account_by_email")
+    if email in user_dict.keys() and password == user_dict[email]['password']:
+        return True
+    return False
+
+def get_bird_code_dictionary():
+    result_dict={}
+    for i in range(len(app.config['BIRD_NAME_LIST'])):
+        result_dict[i]=app.config['BIRD_NAME_LIST'][i]
+    return result_dict
+
+def save_register_information(username,email,password,expert):
+    tmp_new_user = {
+        "type": "account",  # the user information, separated from other docs
+        "username": username,
+        "email": email,
+        "password": password,
+        "expert": expert
+    }
+    print tmp_new_user
+
+    db_bird=get_db()
+    # put the new added account information into the DB
+    db_bird.save(tmp_new_user)
+
+    print "after save, tmp obj :", tmp_new_user
+
+    user_register_success = True
+    response_msg = "A new account has been successfully created!"
+
+    # check if the email is used twice or even more in the database
+    email_count = 0
+    for row in db_bird.view("account/account_by_email"):
+        if row.key == email:
+            email_count += 1
+
+    # delete the record if it appears twice or more, and return an error message
+    if email_count >= 2:
+        db_bird.delete(tmp_new_user)
+        response_msg = "The email has been used. Please try again."
+        user_register_success = False
+
+    return user_register_success,response_msg
