@@ -3,10 +3,26 @@ import os
 # the place to store the uploaded audio files
 # here the upload directory should be at the same level of config file
 # UPLOAD_FOLDER = "../tmp"
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__) + '/tmp')
+# UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__) + '/tmp')
+
+# We have to use absolute path in order to have nginx serve the uploaded file
+# Windows
+UPLOAD_FOLDER = 'F:\\MSc_Proj\\nginx-1.10.1\\html\\audio\\tmp'
+
+# Linux
+# UPLOAD_FOLDER ='/home/ubuntu/audio/tmp'
+
+
 
 # the place to store the training data downloaded from xeno_canto
-TRAINING_FILE_FOLDER=os.path.join(os.path.dirname(__file__) + '/training_file/')
+# TRAINING_FILE_FOLDER=os.path.join(os.path.dirname(__file__) + '/training_file/')
+
+# Windows
+TRAINING_FILE_FOLDER = 'F:\\MSc_Proj\\nginx-1.10.1\\html\\audio\\training'
+
+# Linux
+# TRAINING_FILE_FOLDER ='/home/ubuntu/audio/training'
+
 
 # the file formats allowed
 ALLOWED_EXTENSIONS = set(['wav'])
