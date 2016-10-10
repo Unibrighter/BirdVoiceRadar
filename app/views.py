@@ -361,6 +361,8 @@ def upload_audio():
                 response_json['estimation_rank']=result_list
                 response_json['confidence']= confidence
                 response_json['bird_code_dictionary']=get_bird_code_dictionary()
+                response_json['md5']=doc_rec['md5']
+                response_json['_id']=doc_rec['_id']
 
             # random_result = get_estimation_rank()
             # return jsonify({"status": "uploaded", "audio_id": md5_key, "estimation_rank": random_result[0],
