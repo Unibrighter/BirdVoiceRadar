@@ -12,8 +12,6 @@ UPLOAD_FOLDER = 'F:\\MSc_Proj\\nginx-1.10.1\\html\\audio\\tmp'
 # Linux
 # UPLOAD_FOLDER ='/home/ubuntu/audio/tmp'
 
-
-
 # the place to store the training data downloaded from xeno_canto
 # TRAINING_FILE_FOLDER=os.path.join(os.path.dirname(__file__) + '/training_file/')
 
@@ -51,3 +49,12 @@ BIRD_NAME_LIST=[
 BIRD_DOWNLOAD_LIST=[
     'Brush%20Cuckoo','Australian%20Golden%20Whistler','Eastern%20Whipbird','Grey%20Shrikethrush','Pied%20Currawong',
            'Southern%20Boobook','Spangled%20Drongo','Willie%20Wagtail']
+
+STATIC_SERVER_IP='192.168.31.236'
+
+STATIC_UPLOAD_FILE_PATH='/audio/tmp/'
+
+
+STATIC_TRAINING_FILE_PATH='/audio/training/'
+
+EXPERT_ASSISTANCE_VAULT=0.505

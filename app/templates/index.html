@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>History Record >>> </h2>
+
+<table border>
+
+    <!--The filter panel here is used to filter the results-->
+    <div>
+
+
+    </div>
+
+    <!--Header information-->
+    <th></th>
+    <th>Record ID</th>
+    <th>Top Prediction</th>
+    <th>Submitted User</th>
+    <th>Location</th>
+    <th>Date and Time</th>
+    <th>Expert Assistance</th>
+    <th>Md5</th>
+
+    {% for audio_record in audio_record_list %}
+    <!--The container to hold each piece of record-->
+    <tr>
+        <td><a href={{url_for('record_detail', record_id=audio_record._id)}}><img src={{ url_for('static',
+            filename='bird_icon/')}}{{audio_record.top_estimation_code}}.jpg ><img></a></td>
+        <td><a href={{url_for('record_detail', record_id=audio_record._id)}}>{{audio_record._id}}</a></td>
+        <td>{{audio_record.top_estimation_bird}}</td>
+        <td>{{audio_record.submitted_by}}</td>
+        <td>{{audio_record.location}}</td>
+        <td>{{audio_record.date ~ " " ~ audio_record.time}}</td>
+        <td>{{audio_record.expert_request_status}}</td>
+        <td>{{audio_record.md5}}</td>
+    {% endfor %}
+
+</table>
+
+{% endblock %}

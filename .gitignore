@@ -1,3 +1,6 @@
+/nginx-1.10.1
+
+
 # Compiled source #
 ###################
 *.com
@@ -39,3 +42,4 @@ tmtagsHistory
 *.sublime-project
 *.sublime-workspace
 .bundle
+.wav
