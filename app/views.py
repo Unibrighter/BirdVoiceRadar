@@ -282,7 +282,7 @@ def upload_audio():
 
             # Now we could search it in CouchDB using this unique md5 id to ensure that the file is unique
             # and if not, then we should return a failure message for the client
-            record_dict = get_view_as_dict("account/account_by_email")
+            record_dict = get_view_as_dict("record/record_by_md5")
 
             # this json is only used for android and iOS
             response_json = {}
