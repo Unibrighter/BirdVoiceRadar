@@ -16,7 +16,7 @@
 
 <!--There should be a constraint for different user role-->
 
-<div>BirdRecognition: <a href="/user">Home</a></div>
+<div>BirdRecognition: <a href="/">Home</a></div>
 {% if g.user.is_authenticated %}
 | <a href="{{ url_for('logout') }}">Logout</a>
 {% endif %}

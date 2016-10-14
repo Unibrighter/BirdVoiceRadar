@@ -14,6 +14,7 @@ from time import strftime
 from forms import RegisterForm, LoginForm
 import wikipedia
 from flask import request
+import operator
 
 
 @app.route('/test')
@@ -23,7 +24,8 @@ def test():
     return render_template('record_detail.html', audio_name="Test name", audio_record=doc_rec,
                            wiki_info=get_wiki_info(doc_rec['top_estimation_bird']),
                            bird_dict=get_bird_code_dictionary(),
-                           expert_assistance_value=app.config['EXPERT_ASSISTANCE_VAULT'])
+                           expert_assistance_value=app.config['EXPERT_ASSISTANCE_VAULT'],
+                           bird_dictionary=get_bird_code_dictionary(as_list=True))
 
 
 '''
@@ -331,14 +333,14 @@ def upload_audio():
                     "longitude": request.form['longitude'],
                     "latitude": request.form['latitude'],
                     "evaluation": request.form['evaluation'],
-                    "submitted_by": request.form['submitted_by'],
+                    "submitted_by": request.form['submitted_by'].replace("%40", "@"),
                     "date": request.form['date'],
-                    "time": request.form['time'],
+                    "time": request.form['time'].replace("%3A", ":"),
                     # "estimation_rank":[],
                     # "confidence": "0.82",
                     # "top_estimation_code":get_bird_code(rec['en']),
                     # "top_estimation_bird":rec['en'], # this could be latter expanded to a more mature json with more information
-                    "user_comment": request.form['user_comment'],
+                    "user_comment": request.form['user_comment'].replace("+", " "),
                     "expert_request_status": "not",
                     # the request status could one of ['not','pending','classified','completed']
                     "expert_comment": ""
@@ -433,9 +435,10 @@ This route takes care of the login of a user,
 def login():
     form = LoginForm()
     if request.method == 'POST':
-        # print request.form
-        # print request.headers
-        if request.form['client'] == 'android' or request.form['client'] == 'iOS':
+        print request.form
+        print request.headers
+        client = request.form.get('client', None)
+        if client == 'android' or client == 'iOS':
             print request.form
             email = request.form['email']
             password = request.form['password']
@@ -468,13 +471,15 @@ def logout():
 
 @app.route('/record_detail/<record_id>')
 def record_detail(record_id):
-    db_bird=get_db()
-    doc_rec=db_bird[record_id]
+    db_bird = get_db()
+    doc_rec = db_bird[record_id]
     head, tail = os.path.split(doc_rec['file_path'])
+    print doc_rec
     return render_template('record_detail.html', audio_name=tail, audio_record=doc_rec,
                            wiki_info=get_wiki_info(doc_rec['top_estimation_bird']),
                            bird_dict=get_bird_code_dictionary(),
-                           expert_assistance_value=app.config['EXPERT_ASSISTANCE_VAULT'])
+                           expert_assistance_value=app.config['EXPERT_ASSISTANCE_VAULT'],
+                           bird_dictionary=get_bird_code_dictionary(as_list=True))
 
 
 '''
@@ -487,34 +492,132 @@ This view is used to generate details and set up a index page of all the records
 def index():
     # first test whether we are going to serve the entire result or just part of it
     result_list = []
-    if request.args.get('view'):
-        if request.args.get('view') == 'sub':
-            return "under develop"
-        else:  # get all records as result
+    view_option = request.args.get('view', 'all')
+    if view_option == 'sub':
+        return "under develop"
+    else:  # get all records as result
 
-            # Now we could search it in CouchDB using this unique md5 id to ensure that the file is unique
-            # and if not, then we should return a failure message for the client
-            record_dict = get_view_as_dict("record/all_training_and_upload")
-            result_list = record_dict.values()
-            # print result_list
-            # response differently according to the user clients
-            if is_from_mobile_app(request.form.get('client','browser'),request.headers['User-Agent']):
-                return jsonify({"record_list":result_list})
-            else:
-                # from the browser
-                # return jsonify({"record_list": result_list})
-                return render_template("index.html",audio_record_list=result_list)
-    else:
-        return "Please do the right parameters!"
+        # Now we could search it in CouchDB using this unique md5 id to ensure that the file is unique
+        # and if not, then we should return a failure message for the client
+        record_dict = get_view_as_dict("record/all_training_and_upload")
+        result_list = record_dict.values()
+        # print result_list
+        # response differently according to the user clients
+        if is_from_mobile_app(request.form.get('client', 'browser'), request.headers['User-Agent']):
+            return jsonify({"record_list": result_list})
+        else:
+            # from the browser
+            # return jsonify({"record_list": result_list})
+            return render_template("index.html", audio_record_list=result_list)
 
 
-# this method should be latter changed into something uses more than random function but the generated model
+@app.route("/expert_status_update/<record_id>", methods=['GET', 'POST'])
+def expert_status_update(record_id):
+    bird_db = get_db()
+    target_record = bird_db[record_id]
+
+    update_result=False
+
+    if is_from_mobile_app(request.form.get('client', 'browser'), request.headers['User-Agent']):
+        if target_record['expert_request_status'] == 'not' and target_record['confidence'] <= app.config[
+            'EXPERT_ASSISTANCE_VAULT']:
+            # from not => pending
+            target_record['expert_request_status'] = 'pending'
+        if target_record['expert_request_status'] == 'marked':
+            target_record['expert_request_status'] = 'confirmed'
+        bird_db.save(target_record)
+        update_result=True
+
+    # 1. right submitter, 2. common user
+    if g.user.email == target_record['submitted_by'] and g.user.expert == 'false':
+        if target_record['expert_request_status'] == 'not' and target_record['confidence'] <= app.config[
+            'EXPERT_ASSISTANCE_VAULT']:
+            # from not => pending
+            target_record['expert_request_status'] = 'pending'
+        if target_record['expert_request_status'] == 'marked':
+            target_record['expert_request_status'] = 'confirmed'
+        bird_db.save(target_record)
+        update_result = True
+
+    return jsonify({"update_status":update_result})
+
+
+
+'''
+This One is used for record meta data update for experts only
+'''
+
+
+@app.route("/record_detail_update/<record_id>", methods=['POST'])
+def record_detail_update(record_id):
+    bird_db = get_db()
+    target_record = bird_db[record_id]
+
+    if g.user.expert == 'false':
+        return 'You do not have the expert right to mark this record!'
+
+    print request.form
+    # get the parameters from the form by the expert
+    expert_comment = request.form['expert_comment']
+
+    expert_estimation_code = int(request.form['expert_estimation_code'])
+
+    expert_estimation_bird = app.config['BIRD_NAME_LIST'][expert_estimation_code]
+
+    # save the changes to the database
+    target_record['expert_comment'] = expert_comment
+    target_record['expert_estimation_code'] = expert_estimation_code
+    target_record['expert_estimation_bird'] = expert_estimation_bird
+
+    if target_record['expert_request_status'] != 'not':
+        # if the status is 'not', then it shall not be changed
+        # otherwise, the status should be set to marked
+        target_record['expert_request_status'] = 'marked'
+
+    bird_db.save(target_record)
+    return redirect(url_for('record_detail', record_id=record_id))
+
+
+@app.route("/expert_request_query", methods=['POST', 'GET'])
+def expert_request_query():
+    if request.method=='GET':
+        user_email = request.args.get('email', '')
+        expert_request_status = request.args.get('status', '')
+
+    if request.method=='POST':
+        print request.form
+        user_email=request.form.get('email','')
+        expert_request_status = request.form.get('status', '')
+    print user_email
+    print expert_request_status
+
+    raw_collection = get_raw_collection_as_array()
+    raw_collection = filter_text(raw_collection, 'submitted_by', user_email)
+    raw_collection = filter_text(raw_collection, 'expert_request_status', expert_request_status)
+
+    print len(raw_collection)
+
+    return jsonify({"result_list": raw_collection})
+
+
+@app.route("/expert_view", methods=['GET'])
+def expert_view():
+    raw_collection = get_raw_collection_as_array()
+    pending_list = filter_text(raw_collection, 'expert_request_status', 'pending')
+    marked_list = filter_text(raw_collection, 'expert_request_status', 'marked')
+    confirmed_list = filter_text(raw_collection, 'expert_request_status', 'confirmed')
+
+    return render_template('expert_view.html', pending_list=pending_list, marked_list=marked_list,
+                           confirmed_list=confirmed_list)
+
+
 '''
 Need to be changed into the real model estimator latter on
 '''
 
 
-def get_estimation_rank():
+def get_random_estimation_rank():
+    # this method should be latter changed into something uses more than random function but the generated model
     result_dic = {}
     confident = False
     for i in range(8):
@@ -539,10 +642,13 @@ def check_account_credentials(email, password):
     return False, None
 
 
-def get_bird_code_dictionary():
+def get_bird_code_dictionary(as_list=False):
     result_dict = {}
     for i in range(len(app.config['BIRD_NAME_LIST'])):
         result_dict[i] = app.config['BIRD_NAME_LIST'][i]
+    if as_list:
+        sorted_bird_dict = sorted(result_dict.items(), key=operator.itemgetter(0))
+        return sorted_bird_dict
     return result_dict
 
 
@@ -613,7 +719,7 @@ def get_wiki_info(title):
     return info
 
 
-def is_from_mobile_app(client,user_agent_str):
+def is_from_mobile_app(client, user_agent_str):
     if client == 'iOS' or client == 'android':
         return True
 
@@ -622,3 +728,58 @@ def is_from_mobile_app(client,user_agent_str):
     if 'android' in user_agent_str or 'ios' in user_agent_str:
         return True
     return False
+
+
+'''
+This method is used for raw data collection before going through the filters
+'''
+
+
+def get_raw_collection_as_array():
+    db_bird = get_db()
+    result = db_bird.view('record/raw_collection')
+    return result.rows
+
+
+'''
+Use the filter to get the wanted results within a range
+'''
+
+
+def filter_range(raw_list, attribute_name, min, max):
+    if not min and not max:
+        return raw_list
+    result_list = []
+    for row in raw_list:
+        if row.key[get_attribute_index(attribute_name)] >= min and row.key[get_attribute_index(attribute_name)] <= max:
+            result_list.append(row.value)
+    return result_list
+
+
+'''
+Use the filter to get the wanted results
+'''
+
+
+def filter_text(raw_list, attribute_name, value):
+    # no restriction, return all of the data here.
+    if not value:
+        return raw_list
+
+    result_list = []
+    for row in raw_list:
+        if row.key[get_attribute_index(attribute_name)] == value:
+            result_list.append(row.value)
+    return result_list
+
+
+'''
+This method is used to get the attribute index for the list of the 'raw_collection' view
+'''
+
+
+def get_attribute_index(attribute_name):
+    for i in range(len(app.config['RAW_COLLECTION_KEY_LIST'])):
+        if app.config['RAW_COLLECTION_KEY_LIST'][i] == attribute_name:
+            return i
+    return -1

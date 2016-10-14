@@ -6,7 +6,7 @@
         {{audio_record.top_estimation_bird}} with Confidence
 
         {% if audio_record.training_data== 'true' %}
-         100%
+        100%
         {% else %}
         {{ audio_record.confidence*100 }}% .
         {% endif%}
@@ -85,28 +85,72 @@
         <form>
             <fieldset disabled="disabled">
                 <ul>
-                    <li>Expert Request Status: <input type=text size=80 value="{{audio_record.expert_request_status}}"/></li>
+                    <li>Expert Request Status: <input type=text size=80 value="{{audio_record.expert_request_status}}"/>
+                    </li>
                     <li>User Comment: <input type=text size=80 value="{{audio_record.user_comment}}"/></li>
                     <li>Submitted_By: <input type=text size=80 value="{{audio_record.submitted_by}}"/></li>
-                    <li>Location : <input type=text size=80  value="{{audio_record.location}}"/></li>
-                    <li>Evaluation: <input type=text size=80  value="{{audio_record.evaluation}}"/></li>
-                    <li>Date: <input type=text size=80  value="{{audio_record.date}}"/></li>
-                    <li>Time: <input type=text size=80  value="{{audio_record.time}}"/></li>
+                    <li>Location : <input type=text size=80 value="{{audio_record.location}}"/></li>
+                    <li>Evaluation: <input type=text size=80 value="{{audio_record.evaluation}}"/></li>
+                    <li>Date: <input type=text size=80 value="{{audio_record.date}}"/></li>
+                    <li>Time: <input type=text size=80 value="{{audio_record.time}}"/></li>
                 </ul>
             </fieldset>
         </form>
     </div>
 
-    <!--This function will be enabled only when the confidence is lower than the setting-->
-    {% if audio_record.confidence < expert_assistance_value %}
+    <!--Request for Expert Assistance Panel for COMMON user-->
+    {% if audio_record.submitted_by == g.user.email and audio_record.confidence < 0.505 and g.user.expert == 'false'%}
+    <hr>
+    <p>Since the confidence is lower than the average performance, you are eligible to apply for expert request.</p>
+    <div>
+        {% if audio_record.expert_request_status=='not'%}<!--status:not-->
+        <span><a href={{url_for('expert_status_update',record_id=audio_record._id)}}
+                 --->Hit me to REQUEST the assistance from experts.<---</a>
+            </span>
+        {%endif%}
 
-        {% if g.user.expert=='true' %}
-            Experts do something form!
-        {% else %}
-            Common Users request form button!
-        {% endif %}
+        {% if audio_record.expert_request_status == 'pending'%}<!--status:pending-->
+        <span>Please Wait with patience... The requested record has not been marked by an expert yet.</span>
+        {% endif%}
+
+        {% if audio_record.expert_request_status == 'marked'%}<!--status:marked-->
+        <span>Please Confirmed the following information marked by an expert: (only as a reference)</span>
+        <!--display the two data only supported when the status becomes marked by experts-->
+        <span>Experts' Estimation:</span>{{audio_record.expert_estimation_bird}}
+        <span><img src={{ url_for('static', filename='bird_icon/')}}{{audio_record.expert_estimation_code}}.jpg ></span>
+        <span><a href={{url_for('expert_status_update',record_id=audio_record._id)}}
+                 --->Hit me to CONFIRM the result.<---</a>
+            </span>
+        {% endif%}
+
+        {% if audio_record.expert_request_status == 'confirmed'%}<!--status:marked-->
+        <span>The result of expert assistance has been confirmed: (only as a reference)</span>
+        <!--display the two data only supported when the status becomes marked by experts-->
+        <span>Experts' Estimation:</span>{{audio_record.expert_estimation_bird}}
+        <span><img src={{ url_for('static', filename='bird_icon/')}}{{audio_record.expert_estimation_code}}.jpg ></span>
+        {% endif%}
+    </div>
     {% endif %}
 
+    <!--This panel is used to navigate expert to submit essential information to mark the record-->
+    {% if g.user.expert=='true' %}
+    <div>
+        {% if audio_record.expert_request_status=='not' %}
+            <span>No Assistance request has been made by the submitter.</span>
+        {% else %}<!-- status from pending, marked, confirmed => tp marked again-->
+            <form action={{url_for('record_detail_update',record_id=audio_record._id)}} method=POST>
+                <select name=expert_estimation_code>
+                {% for bird_dictionary_item in bird_dictionary%}
+                    <option value= {{bird_dictionary_item[0]}}>{{bird_dictionary_item[1]}}</option>
+                {% endfor %}
+                </select>
+                <p>
+                Expert Comment: <input name="expert_comment" type=text size=80 value="{{audio_record.expert_comment}}" />
+                <input type=submit value="Mark The sample"><input type=reset>
+            </form>
+        {% endif %}
+     </div>
+    {% endif %}
 
     <!--wavesurfer script for control panel-->
     <script>
@@ -235,6 +279,5 @@
         }
         ;
     </script>
-
 
     {% endblock %}

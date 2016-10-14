@@ -54,7 +54,8 @@ STATIC_SERVER_IP='192.168.31.236'
 
 STATIC_UPLOAD_FILE_PATH='/audio/tmp/'
 
-
 STATIC_TRAINING_FILE_PATH='/audio/training/'
 
 EXPERT_ASSISTANCE_VAULT=0.505
+
+RAW_COLLECTION_KEY_LIST=['top_estimation_code','submitted_by','expert_request_status','training_data','longitude','latitude','date','time','confidence']

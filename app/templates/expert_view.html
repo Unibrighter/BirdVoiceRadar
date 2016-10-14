@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Expert View >>> </h2>
+
+
+<!--There are three section in total, displayed in different tables respectively-->
+
+<!--Pending Section-->
+<div>
+<span><h3>Pending Records :</h3></span>
+<table border>
+    <!--Header information-->
+    <th></th>
+    <th>Record ID</th>
+    <th>Top Prediction</th>
+    <th>Submitted User</th>
+    <th>Location</th>
+    <th>Date and Time</th>
+    <th>Expert Assistance</th>
+    <th>Md5</th>
+    {% for audio_record in pending_list %}
+    <!--The container to hold each piece of record-->
+    <tr>
+        <td><a href={{url_for('record_detail', record_id=audio_record._id)}}><img src={{ url_for('static',
+            filename='bird_icon/')}}{{audio_record.top_estimation_code}}.jpg ><img></a></td>
+        <td><a href={{url_for('record_detail', record_id=audio_record._id)}}>{{audio_record._id}}</a></td>
+        <td>{{audio_record.top_estimation_bird}}</td>
+        <td>{{audio_record.submitted_by}}</td>
+        <td>{{audio_record.location}}</td>
+        <td>{{audio_record.date ~ " " ~ audio_record.time}}</td>
+        <td>{{audio_record.expert_request_status}}</td>
+        <td>{{audio_record.md5}}</td>
+    {% endfor %}
+</table>
+</div>
+
+<hr>
+
+<!--Marked Section-->
+<div>
+<span><h3>Marked Records :</h3></span>
+<table border>
+    <!--Header information-->
+    <th></th>
+    <th>Record ID</th>
+    <th>Top Prediction</th>
+    <th>Submitted User</th>
+    <th>Location</th>
+    <th>Date and Time</th>
+    <th>Expert Assistance</th>
+    <th>Md5</th>
+    {% for audio_record in marked_list %}
+    <!--The container to hold each piece of record-->
+    <tr>
+        <td><a href={{url_for('record_detail', record_id=audio_record._id)}}><img src={{ url_for('static',
+            filename='bird_icon/')}}{{audio_record.top_estimation_code}}.jpg ><img></a></td>
+        <td><a href={{url_for('record_detail', record_id=audio_record._id)}}>{{audio_record._id}}</a></td>
+        <td>{{audio_record.top_estimation_bird}}</td>
+        <td>{{audio_record.submitted_by}}</td>
+        <td>{{audio_record.location}}</td>
+        <td>{{audio_record.date ~ " " ~ audio_record.time}}</td>
+        <td>{{audio_record.expert_request_status}}</td>
+        <td>{{audio_record.md5}}</td>
+    {% endfor %}
+</table>
+</div>
+
+<!--Confirmed Section-->
+<div>
+<span><h3>Confirm Records :</h3></span>
+<table border>
+    <!--Header information-->
+    <th></th>
+    <th>Record ID</th>
+    <th>Top Prediction</th>
+    <th>Submitted User</th>
+    <th>Location</th>
+    <th>Date and Time</th>
+    <th>Expert Assistance</th>
+    <th>Md5</th>
+    {% for audio_record in confirmed_list %}
+    <!--The container to hold each piece of record-->
+    <tr>
+        <td><a href={{url_for('record_detail', record_id=audio_record._id)}}><img src={{ url_for('static',
+            filename='bird_icon/')}}{{audio_record.top_estimation_code}}.jpg ><img></a></td>
+        <td><a href={{url_for('record_detail', record_id=audio_record._id)}}>{{audio_record._id}}</a></td>
+        <td>{{audio_record.top_estimation_bird}}</td>
+        <td>{{audio_record.submitted_by}}</td>
+        <td>{{audio_record.location}}</td>
+        <td>{{audio_record.date ~ " " ~ audio_record.time}}</td>
+        <td>{{audio_record.expert_request_status}}</td>
+        <td>{{audio_record.md5}}</td>
+    {% endfor %}
+</table>
+</div>
+
+{% endblock %}
