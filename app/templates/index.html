@@ -1,14 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>History Record >>> </h2>
+<!--The filter panel here is used to filter the results-->
+<div>
+
+
+</div>
+
+<script defer
+            src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC8TpXckdB825zX6MO12cIDXs8TgHq70cs&callback=myMap"></script>
+
+<!--The following panel is used to demonstrate all the marker on the google map-->
+<div>
+    <div id="map" style="width:100%;height:500px"></div>
+</div>
+
 
 <table border>
 
-    <!--The filter panel here is used to filter the results-->
-    <div>
-
-
-    </div>
 
     <!--Header information-->
     <th></th>
@@ -32,8 +41,47 @@
         <td>{{audio_record.date ~ " " ~ audio_record.time}}</td>
         <td>{{audio_record.expert_request_status}}</td>
         <td>{{audio_record.md5}}</td>
-    {% endfor %}
+        {% endfor %}
 
 </table>
+
+<!--google map-->
+<script>
+    function myMap() {
+        var mapCanvas = document.getElementById("map");
+        var myCenter = new google.maps.LatLng(-37.7, 144.9);
+        var mapOptions = {
+            center: myCenter,
+            zoom: 5,
+        };
+        var map = new google.maps.Map(mapCanvas, mapOptions);
+
+        <!--Get the doc array from the server and build all the information window and marker-->
+        var doc_list = {{audio_record_list|tojson}}
+
+        var info_window=new google.maps.InfoWindow();
+        for (var index in doc_list) {
+            var location = {"lat": parseFloat(doc_list[index]['latitude']), "lng": parseFloat(doc_list[index]['longitude'])};
+            var marker = new google.maps.Marker({
+                position: location,
+                map: map
+            });
+            marker.content= '<div>' +
+                    doc_list[index]['top_estimation_bird'] +
+                    '<span><img src=http://localhost:5001/static/bird_icon/' +
+                    doc_list[index]['top_estimation_code']+
+                    '.jpg ></span>'+
+                    '</div>';
+
+
+              marker.addListener('click', function() {
+                  info_window.close();
+                  info_window.setContent(this.content);
+                info_window.open(map, this);
+              });
+
+        }
+    };
+</script>
 
 {% endblock %}
