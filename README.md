@@ -39,6 +39,7 @@ If you plan to deploy the system on other virtual machine on Cloud. Here are the
 When all of the libraries are installed properly, you can start the server now.
 
 3. Get the views ready in CouchDB
+
 - _desing/record
 >{
 >   "all_training_and_upload": {
