@@ -156,7 +156,6 @@ class XenoCantoObject:
             file_to_check.close
             # get db connection
             bird_db = get_db()
-
             doc = {
                 "type": "record",
             # this is the file label that distinguish the user account information from audio records
@@ -180,5 +179,4 @@ class XenoCantoObject:
                 "expert_request_status":"not", # the request status could one of ['not','pending','classified','completed']
                 "expert_comment":"This audio file is downloaded from Xeno-Canto.com!"
             }
-
             bird_db.save(doc)

@@ -102,58 +102,6 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
 
 
-'''
-The page where allows users to upload new audio file, update machine learning model,
-visualise the location on the map
-'''
-
-
-@app.route("/original", methods=['GET', 'POST'])
-@login_required
-def original():
-    if request.method == 'POST':
-        file = request.files['file']
-        if file and allowed_file(file.filename):
-            filename = file.filename
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-
-            filename_split = filename.split("_")
-            lat, lng = filename_split[-3:-1]
-            print lat, lng
-
-            birdsong = BirdSong()
-
-            # load stored model and means and inverse standard deviations
-            with open('objs.pickle') as f:
-                gmm, means, invstds = pickle.load(f)
-
-            # calculate features for the uploaded file and predict
-            mfcc_feat1 = birdsong.file_to_features(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            mfcc_feat = (mfcc_feat1 - means) * invstds
-            bird_name, confidence = birdsong.predict_one_bird(mfcc_feat, gmm)
-
-            # if confident enough, add feature to the database. The threshold is set manually as 0.7
-            if confidence > 0.7:
-                features = mfcc_feat1.tolist()
-                connection = pymongo.MongoClient("mongodb://localhost")
-                # get a handle to the bird database
-                db = connection.bird
-                birdFeature = db.birdFeature
-                count = birdFeature.find().count() + 1
-                a_bird = {'_id': bird_name + '_' + str(count), 'feature': features}
-                print('Inserted', bird_name + '_' + str(count))
-                try:
-                    birdFeature.insert_one(a_bird)
-
-                except Exception as e:
-                    print "Unexpected error:", type(e), e
-
-            confidence = "{0:.2f}".format(confidence)
-
-            return render_template('bird.html', name=bird_name, confidence=confidence, lat=lat, lng=lng)
-
-    return render_template('bird.html')
-
 
 '''
 This is the url used to update the stored model using the most up-to-date data
@@ -164,7 +112,7 @@ This is the url used to update the stored model using the most up-to-date data
 def update():
     birdsong = BirdSong()
 
-    dic = birdsong.get_feature_dic_mongodb("mongodb://localhost")
+    dic = birdsong.get_feature_dic_couchdb()
 
     allconcat = np.vstack((dic.values()))
 
@@ -177,100 +125,35 @@ def update():
         else:
             invstds[i] = 1.0 / val
 
+    print "The length of the dictionary is :",len(dic.keys())
+
     normedTrain = birdsong.normed_features(dic, means, invstds)
+    print "Begin to train the data."
+
+    print normedTrain
+
     gmm = birdsong.train_the_model(normedTrain)
 
     print(len(gmm), 'len gmm')
 
     list_to_save = [gmm, means, invstds]
 
-    with open('objs.pickle', 'w') as f:
+    with open('objs_new.pickle', 'w') as f:
         pickle.dump(list_to_save, f)
 
     return redirect(url_for('index'))
 
-
-'''
-New added code, this part will use the Flask-Upload Module to deal with the audio file uploading,
-and informs the clients about the status of the results by sending a status json back to the clients.
-'''
-
-
-@app.route('/upload', methods=['GET', 'POST'])
-def upload():
-    if request.method == 'POST':
-        file = request.files['file']
-        if file and allowed_file(file.filename):
-            filename = file.filename
-
-            # format and long/latitude
-            filename_split = filename.split("_")
-
-            # save the record temporary that may goes well the second json latter.
-            file_path_on_server = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-            # storing to the server's disk complete, now deal with the audio id and Database.
-            file.save(file_path_on_server)
-
-            # generate a record in the database
-            lat, lng = filename_split[-3:-1]
-            print lat, lng
-
-            birdsong = BirdSong()
-
-            # load stored model and means and inverse standard deviations
-            with open('objs.pickle') as f:
-                gmm, means, invstds = pickle.load(f)
-
-            # calculate features for the uploaded file and predict
-            mfcc_feat1 = birdsong.file_to_features(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            mfcc_feat = (mfcc_feat1 - means) * invstds
-            rank_list, confidence = birdsong.predict_one_bird(mfcc_feat, gmm)
-
-            bird_name = app.config['BIRD_NAME_LIST'][rank_list[0][0]]
-
-            # if confident enough, add feature to the database. The threshold is set manually as 0.7
-            if confidence > 0.7:
-                features = mfcc_feat1.tolist()
-                connection = pymongo.MongoClient("mongodb://localhost")
-                # get a handle to the bird database
-                db = connection.bird
-                birdFeature = db.birdFeature
-                count = birdFeature.find().count() + 1
-                a_bird = {'_id': bird_name + '_' + str(count), 'feature': features}
-                print('Inserted', bird_name + '_' + str(count))
-                try:
-                    birdFeature.insert_one(a_bird)
-
-                except Exception as e:
-                    print "Unexpected error:", type(e), e
-
-            confidence = "{0:.2f}".format(confidence)
-            return render_template('bird.html', name=bird_name, confidence=confidence, lat=lat, lng=lng)
-    return render_template('bird.html')
-
-
-# '''
-# This function breaks the file stored on the disk into chucks at the size of 4096
-# and then return the MD5 value of that particular file on the disk
-# '''
-# def md5(fname):
-#     hash_md5 = hashlib.md5()
-#     with open(fname, "rb") as f:
-#         for chunk in iter(lambda: f.read(4096), b""):
-#             hash_md5.update(chunk)
-#     return hash_md5.hexdigest()
 
 
 '''
 test_dummy using a generate to generate a json response to the client
 '''
 
-
+@login_required
 @app.route('/upload_audio', methods=['GET', 'POST'])
 def upload_audio():
-    # print request.form
-    # print request.headers
+    print request.form
+    print request.headers
     if request.method == 'POST':
         file = request.files['file']
         if file and allowed_file(file.filename):
@@ -486,7 +369,7 @@ def record_detail(record_id):
 This view is used to generate details and set up a index page of all the records
 '''
 
-
+@login_required
 @app.route('/')
 @app.route("/index", methods=['GET', 'POST'])
 def index():
@@ -494,8 +377,11 @@ def index():
     result_list = []
     view_option = request.args.get('view', 'all')
     if view_option == 'sub':
-        return "under develop"
+        return "Please input the right parameters!"
     else:  # get all records as result
+
+        bird_icons_url=app.config['STATIC_SERVER_IP']+":5001"+"/static/bird_icon/"
+
 
         # Now we could search it in CouchDB using this unique md5 id to ensure that the file is unique
         # and if not, then we should return a failure message for the client
@@ -508,7 +394,7 @@ def index():
         else:
             # from the browser
             # return jsonify({"record_list": result_list})
-            return render_template("index.html", audio_record_list=result_list)
+            return render_template("index.html", audio_record_list=result_list, bird_icons_url=bird_icons_url)
 
 
 @app.route("/expert_status_update/<record_id>", methods=['GET', 'POST'])
@@ -612,7 +498,7 @@ def expert_view():
 
 
 '''
-Need to be changed into the real model estimator latter on
+The following methods are used to assist the view routes to finish the jobs
 '''
 
 

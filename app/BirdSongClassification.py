@@ -14,6 +14,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn import cross_validation
 from sklearn.metrics import accuracy_score, classification_report
 import operator
+import couchdb
+import peakutils
 
 framelen = 1024
 fs = 44100.0
@@ -26,7 +28,7 @@ def get_bird_code(bird_name):
     print config.BIRD_NAME_LIST
     print bird_name
     for i in range(len(config.BIRD_NAME_LIST)):
-        if bird_name == config.BIRD_NAME_LIST[i].replace(" ",""):
+        if bird_name == config.BIRD_NAME_LIST[i].replace(" ", ""):
             return i
     # not found
     return -1
@@ -43,17 +45,37 @@ class BirdSong:
         self.mfccMaker.update()
 
     '''
-    Convert a file to features. Take the file location as input and return a numpy array
+    The method uses the wav track presented in numpy array to extract the information about
+    the distance between the peaks of a bird song, which is relevant to the song's pattern
     '''
 
-    def file_to_features(self, wavpath):
+    def get_avg_peak_distance(self,wav_sample):
 
+        # get all the peaks location in the wav track, with at least 50% height of the max peak.
+        indexes = peakutils.indexes(wav_sample, thres=0.5, min_dist=500)
+
+        # get the average distance between the peaks
+        avg_distance=(indexes[len(indexes)-1]-indexes[0])/(len(indexes)-1)
+
+        print avg_distance,"avg d"
+        return avg_distance
+
+    '''
+    Convert a file to features. Take the file location as input and return a numpy array
+    Together with the distance between the peaks on average, if required
+    '''
+
+    def file_to_features(self, wavpath, peak_distance_detection=False):
+
+        entire_track=np.array([])
         sf = Sndfile(wavpath, "r")
         window = np.hamming(framelen)
         features = []
         while (True):
             try:
                 chunk = sf.read_frames(framelen, dtype=np.float32)
+                entire_track=np.append(entire_track,chunk)
+
                 if len(chunk) != framelen:
                     print("Not read sufficient samples - returning")
                     break
@@ -74,8 +96,12 @@ class BirdSong:
                 break
 
         sf.close()
-        return np.array(features)
 
+        if(peak_distance_detection):
+            avg_distance=self.get_avg_peak_distance(entire_track)
+            return (np.array(features),avg_distance)
+
+        return np.array(features)
     '''
     Do 10 folds cross validation, print classifier, accuracy, and classification report
     '''
@@ -114,18 +140,48 @@ class BirdSong:
         return dic
 
     '''
-    Get a dictionary of features for all the files in the files_list.
-    files_list is a list of file locations.
-    A dictionary of features is returned
+       Fetch features from database, and store the features into a dictionary
     '''
 
-    def get_feature_dic(self, files_list):
+    def get_feature_dic_mongodb(self, mongo_path):
+        connection = pymongo.MongoClient(mongo_path)
+        # get a handle to the bird database
+        db = connection.bird
+        birdFeature = db.birdFeature
+
         dic = {}
-        for a_file in sorted(files_list):
-            mfcc_feat = self.file_to_features(a_file)
-            dic[a_file] = mfcc_feat
+        try:
+            cursor = birdFeature.find({})
+
+        except Exception as e:
+            print "Unexpected error:", type(e), e
+
+        count = 0
+        for doc in cursor:
+            count += 1
+            dic[doc['_id']] = doc['feature']
+
+        # print count
 
         return dic
+
+    '''
+       Use couchdb to do the same job like above
+    '''
+
+    def get_feature_dic_couchdb(self):
+        couch_server = couchdb.Server(config.COUCHDB_SERVER)
+        db_bird = couch_server[config.DB_WAV]
+
+        wav_dictionary = db_bird.view("wav/all_wav")
+        result_dic={}
+
+        # update the storing location of all the audio files
+        for row in wav_dictionary:
+            record_doc = row.value
+            result_dic[record_doc['file_path']]=(record_doc['feature'],record_doc['avg_peak_distance'])
+
+        return result_dic
 
     '''
     normed_features returns the normalized features
@@ -135,20 +191,23 @@ class BirdSong:
     return: a dictionary of normalized features
     '''
 
-    def normed_features(self, dic, means, invstds):
+    def normed_features(self, dic, means, invstds,peak_distance_detection=False):
 
         parser = argparse.ArgumentParser()
         group = parser.add_mutually_exclusive_group()
         group.add_argument('-c', '--charsplit', default='_', help="Character used to split filenames")
         args = vars(parser.parse_args())
         normedFeatures = {}
-        for aLabel, feature in dic.items():
+        for aLabel, value in dic.items():
             label = os.path.basename(aLabel).split(args['charsplit'])[0]
             # print label
+            item_feature=(value[0] - means) * invstds
+            if peak_distance_detection:
+                item_feature.append(value[1])
             if label not in normedFeatures:
-                normedFeatures[label] = (feature - means) * invstds  # .tolist()
+                normedFeatures[label] =  item_feature # .tolist()
             else:
-                normedFeatures[label] = np.vstack((normedFeatures[label], (feature - means) * invstds))  # .tolist()
+                normedFeatures[label] = np.vstack((normedFeatures[label], item_feature))  # .tolist()
 
         return normedFeatures
 
@@ -246,7 +305,7 @@ class BirdSong:
         likelihood_list = sorted(likelihood_list)
 
         confidence = likelihood_list[len(likelihood_list) - 2] / (
-        likelihood_list[len(likelihood_list) - 2] + likelihood_list[len(likelihood_list) - 1])
+            likelihood_list[len(likelihood_list) - 2] + likelihood_list[len(likelihood_list) - 1])
         print likelihood_list[len(likelihood_list) - 2], likelihood_list[len(likelihood_list) - 1]
         print best_label, ' for one file test'
         # return best_label,confidence
