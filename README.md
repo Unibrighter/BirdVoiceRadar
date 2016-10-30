@@ -41,7 +41,8 @@ When all of the libraries are installed properly, you can start the server now.
 3. Get the views ready in CouchDB
 
 - _desing/record
->{
+
+> {
 >   "all_training_and_upload": {
 >       "map": "function (doc) {\n  if(doc.type==\"record\")\n  {\n    emit([doc.training_data,doc._id], doc);  \n  }\n  \n}"
 >   },
@@ -57,12 +58,12 @@ When all of the libraries are installed properly, you can start the server now.
 >   "upload_record": {
 >       "map": "function (doc) {\n  if(doc.type=\"record\" && doc.training_data==\"false\")\n  {\n    emit(doc.md5, doc);\n  }\n}"
 >   }
->}
+> }
 
 ---
 
 - _design/account
->{
+> {
 >       "account_by_email": {
 >          "map": "function (doc) {\n  if(doc.type==\"account\")\n  {\n    emit(doc.email, doc);  \n  }\n}"
 >       }
