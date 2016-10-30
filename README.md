@@ -91,6 +91,7 @@ When all of the libraries are installed properly, you can start the server now.
 
 	4. Get the server ready and visit 
 		> HOST:PORT/update
+
 	and the system will general a new pickle file for the new model.
 
 	5. Note that the default option has no other features mixed in the original GMM, if you wish to change this setting, please change the parameters in "update" route.
